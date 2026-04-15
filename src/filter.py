@@ -77,12 +77,16 @@ def ai_score_filter(
     articles: list[Article],
     keywords: list[str],
     min_score: int = 3,
+    min_score_jp: int = 3,
+    min_score_world: int = 4,
 ) -> list[Article]:
     """
-    キーワードマッチ数でスコアリングし、min_score 以上の特許をスコア順に返す
+    キーワードマッチ数でスコアリングし、国別閾値以上の特許をスコア順に返す
+    JP特許: min_score_jp 以上 / それ以外: min_score_world 以上
     """
     passed: list[Article] = []
     logger.info("キーワードスコアリング中 (%d 件)...", len(articles))
+    logger.info("スコア閾値: JP=★%d以上 / 世界=★%d以上", min_score_jp, min_score_world)
 
     for i, article in enumerate(articles, 1):
         result = _keyword_score(article, keywords)
@@ -91,17 +95,21 @@ def ai_score_filter(
         article.score_reason = result["relevance_reason"]
         article.ai_summary = result["summary"]
 
-        status = "✓" if score >= min_score else "✗"
+        is_jp = (article.patent_number or "").startswith("JP")
+        threshold = min_score_jp if is_jp else min_score_world
+        country_label = "JP" if is_jp else "世界"
+        status = "✓" if score >= threshold else "✗"
+
         logger.info(
-            "  [%d/%d] %s ★%d %s",
-            i, len(articles), status, score, article.title[:50],
+            "  [%d/%d] %s ★%d [%s] %s",
+            i, len(articles), status, score, country_label, article.title[:50],
         )
 
-        if score >= min_score:
+        if score >= threshold:
             passed.append(article)
 
     passed.sort(key=lambda a: a.score or 0, reverse=True)
-    logger.info("スコアリング完了: ★%d以上 %d 件 / %d 件", min_score, len(passed), len(articles))
+    logger.info("スコアリング完了: %d 件通過 / %d 件", len(passed), len(articles))
     return passed
 
 
@@ -192,14 +200,20 @@ def add_ai_summaries(articles: list[Article], config: dict) -> None:
 def run_filter(articles: list[Article], config: dict) -> list[Article]:
     """キーワードフィルタ → スコアリングの2段階フィルタを実行する"""
     keywords = config.get("interest_keywords", [])
-    min_score = config["delivery"].get("min_score", 3)
+    delivery = config.get("delivery", {})
+    min_score_jp = delivery.get("min_score_jp", 3)
+    min_score_world = delivery.get("min_score_world", 4)
 
     step1 = keyword_filter(articles, keywords)
     if not step1:
         logger.info("キーワードフィルタで0件になりました")
         return []
 
-    step2 = ai_score_filter(step1, keywords, min_score)
+    step2 = ai_score_filter(
+        step1, keywords,
+        min_score_jp=min_score_jp,
+        min_score_world=min_score_world,
+    )
 
     if step2:
         add_ai_summaries(step2, config)

@@ -18,11 +18,13 @@ interest_keywords:
 
 # ---- 収集・フィルタ設定 ----
 delivery:
-  days_back: 7        # 何日分の特許を対象にするか（1週間）
-  min_score: 3        # ★いくつ以上の特許を配信するか（1〜5）
-  max_patents: 50     # EPO OPS から取得する最大件数（上限100）
+  days_back: 7          # 何日分の特許を対象にするか（1週間）
+  min_score: 3          # デフォルトの最低スコア（下記で上書き）
+  min_score_jp: 3       # 日本特許（JP）の最低スコア
+  min_score_world: 4    # 日本以外（WO・US等）の最低スコア
+  max_patents: 50       # EPO OPS から取得する最大件数（上限100）
   search_fields: "ti,cl"  # 検索対象: ti=タイトル / cl=請求項 / ab=概要（カンマ区切りで複数可）
-  country_filter: ""     # 国フィルタ: "JP"=日本のみ / ""=全世界（WO・US混在）
+  country_filter: ""    # 国フィルタ: "JP"=日本のみ / ""=全世界（WO・US混在）
 
 # ---- AI要約設定 ----
 # GEMINI_API_KEY 環境変数が設定されている場合のみ日本語要約が生成されます
