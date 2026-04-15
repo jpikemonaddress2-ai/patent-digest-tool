@@ -35,7 +35,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: ダイジェストを実行（通常）
-        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == 'false' && inputs.save_html == 'false')
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'false' && github.event.inputs.save_html == 'false')
         env:
           EPO_CONSUMER_KEY: ${{ secrets.EPO_CONSUMER_KEY }}
           EPO_CONSUMER_SECRET: ${{ secrets.EPO_CONSUMER_SECRET }}
@@ -46,7 +46,7 @@ jobs:
         run: python src/main.py --config config.yaml
 
       - name: ダイジェストを実行（ドライラン）
-        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true'
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true'
         env:
           EPO_CONSUMER_KEY: ${{ secrets.EPO_CONSUMER_KEY }}
           EPO_CONSUMER_SECRET: ${{ secrets.EPO_CONSUMER_SECRET }}
@@ -57,7 +57,7 @@ jobs:
         run: python src/main.py --config config.yaml --dry-run
 
       - name: ダイジェストを実行（HTML保存）
-        if: github.event_name == 'workflow_dispatch' && inputs.save_html == 'true'
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.save_html == 'true'
         env:
           EPO_CONSUMER_KEY: ${{ secrets.EPO_CONSUMER_KEY }}
           EPO_CONSUMER_SECRET: ${{ secrets.EPO_CONSUMER_SECRET }}
@@ -68,7 +68,7 @@ jobs:
         run: python src/main.py --config config.yaml --save-html output/digest.html
 
       - name: 生成したHTMLをアップロード
-        if: github.event_name == 'workflow_dispatch' && inputs.save_html == 'true'
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.save_html == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: digest-html
