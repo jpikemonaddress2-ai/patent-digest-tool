@@ -1,0 +1,81 @@
+name: patent-digest-weekly
+
+on:
+  schedule:
+    - cron: '0 23 * * 2'   # 毎週火曜 23:00 UTC = 水曜 08:00 JST
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Skip email sending (true/false)'
+        type: string
+        required: false
+        default: 'false'
+      save_html:
+        description: 'Save HTML as artifact (true/false)'
+        type: string
+        required: false
+        default: 'false'
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Python をセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 依存パッケージをインストール
+        run: pip install -r requirements.txt
+
+      - name: ダイジェストを実行（通常）
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == 'false' && inputs.save_html == 'false')
+        env:
+          EPO_CONSUMER_KEY: ${{ secrets.EPO_CONSUMER_KEY }}
+          EPO_CONSUMER_SECRET: ${{ secrets.EPO_CONSUMER_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          TO_ADDRESSES: ${{ secrets.TO_ADDRESSES }}
+        run: python src/main.py --config config.yaml
+
+      - name: ダイジェストを実行（ドライラン）
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true'
+        env:
+          EPO_CONSUMER_KEY: ${{ secrets.EPO_CONSUMER_KEY }}
+          EPO_CONSUMER_SECRET: ${{ secrets.EPO_CONSUMER_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          TO_ADDRESSES: ${{ secrets.TO_ADDRESSES }}
+        run: python src/main.py --config config.yaml --dry-run
+
+      - name: ダイジェストを実行（HTML保存）
+        if: github.event_name == 'workflow_dispatch' && inputs.save_html == 'true'
+        env:
+          EPO_CONSUMER_KEY: ${{ secrets.EPO_CONSUMER_KEY }}
+          EPO_CONSUMER_SECRET: ${{ secrets.EPO_CONSUMER_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          TO_ADDRESSES: ${{ secrets.TO_ADDRESSES }}
+        run: python src/main.py --config config.yaml --save-html output/digest.html
+
+      - name: 生成したHTMLをアップロード
+        if: github.event_name == 'workflow_dispatch' && inputs.save_html == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-html
+          path: output/digest.html
+          retention-days: 7
+
+      - name: 失敗時の通知（オプション）
+        if: failure()
+        run: |
+          echo "::error::特許情報ダイジェスト配信に失敗しました。ログを確認してください。"
