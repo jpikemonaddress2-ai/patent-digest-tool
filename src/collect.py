@@ -234,11 +234,10 @@ def _parse_ops_xml(xml_data: bytes) -> list[Article]:
 
         ipc_str = "、".join(ipc_codes[:3]) if ipc_codes else None
 
-        # Espacenet URL
         patent_id = f"{country}{doc_number}{kind}"
         url = (
-            f"https://worldwide.espacenet.com/patent/search/family/"
-            f"publication/{country}.{doc_number}.{kind}/en"
+            f"https://patentscope.wipo.int/search/en/detail.jsf"
+            f"?docId={country}{doc_number}"
         )
 
         articles.append(Article(
