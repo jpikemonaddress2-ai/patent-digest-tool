@@ -56,11 +56,24 @@ class Article:
     score: Optional[int] = None
     score_reason: Optional[str] = None
     ai_summary: Optional[str] = None
+    matched_groups: list[str] = field(default_factory=list)
 
 
 def load_config(config_path: str = "config.yaml") -> dict:
     with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def _groups_to_keywords(keyword_groups: list[dict]) -> list[str]:
+    """keyword_groups から重複なしのキーワードリストを返す"""
+    seen: set[str] = set()
+    result: list[str] = []
+    for group in keyword_groups:
+        for kw in group.get("keywords", []):
+            if kw not in seen:
+                seen.add(kw)
+                result.append(kw)
+    return result
 
 
 # --- OAuth トークン管理 ---
@@ -261,7 +274,8 @@ def collect_all(config: dict) -> list[Article]:
     logger.info("収集期間: 過去 %d 日（%s 〜 %s）",
                 days_back, since.strftime("%Y-%m-%d"), until.strftime("%Y-%m-%d"))
 
-    keywords = config.get("interest_keywords", [])
+    keyword_groups = config.get("keyword_groups", [])
+    keywords = _groups_to_keywords(keyword_groups) if keyword_groups else config.get("interest_keywords", [])
     max_results = config["delivery"].get("max_patents", 50)
 
     # トークン取得

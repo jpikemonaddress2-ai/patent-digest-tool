@@ -16,6 +16,29 @@ from collect import Article
 logger = logging.getLogger(__name__)
 
 
+def _groups_to_keywords(keyword_groups: list[dict]) -> list[str]:
+    """keyword_groups から重複なしのキーワードリストを返す"""
+    seen: set[str] = set()
+    result: list[str] = []
+    for group in keyword_groups:
+        for kw in group.get("keywords", []):
+            if kw not in seen:
+                seen.add(kw)
+                result.append(kw)
+    return result
+
+
+def _detect_matched_groups(article: Article, keyword_groups: list[dict]) -> list[str]:
+    """記事がマッチするグループ名のリストを返す"""
+    target = (article.title + " " + article.summary).lower()
+    matched: list[str] = []
+    for group in keyword_groups:
+        lower_kws = [kw.lower() for kw in group.get("keywords", [])]
+        if any(kw in target for kw in lower_kws):
+            matched.append(group["name"])
+    return matched
+
+
 def keyword_filter(articles: list[Article], keywords: list[str]) -> list[Article]:
     """
     タイトルと要約にキーワードが1つでも含まれる特許だけを残す
@@ -157,7 +180,8 @@ def add_ai_summaries(articles: list[Article], config: dict) -> None:
         return
 
     model_name = config.get("gemini_model", "gemini-2.5-flash")
-    keywords = config.get("interest_keywords", [])
+    keyword_groups = config.get("keyword_groups", [])
+    keywords = _groups_to_keywords(keyword_groups) if keyword_groups else config.get("interest_keywords", [])
 
     try:
         client = genai.Client(api_key=api_key)
@@ -199,7 +223,8 @@ def add_ai_summaries(articles: list[Article], config: dict) -> None:
 
 def run_filter(articles: list[Article], config: dict) -> list[Article]:
     """キーワードフィルタ → スコアリングの2段階フィルタを実行する"""
-    keywords = config.get("interest_keywords", [])
+    keyword_groups = config.get("keyword_groups", [])
+    keywords = _groups_to_keywords(keyword_groups) if keyword_groups else config.get("interest_keywords", [])
     delivery = config.get("delivery", {})
     min_score_jp = delivery.get("min_score_jp", 3)
     min_score_world = delivery.get("min_score_world", 4)
@@ -214,6 +239,10 @@ def run_filter(articles: list[Article], config: dict) -> list[Article]:
         min_score_jp=min_score_jp,
         min_score_world=min_score_world,
     )
+
+    if step2 and keyword_groups:
+        for article in step2:
+            article.matched_groups = _detect_matched_groups(article, keyword_groups)
 
     if step2:
         add_ai_summaries(step2, config)

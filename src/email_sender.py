@@ -25,6 +25,12 @@ logger = logging.getLogger(__name__)
 
 JST = timezone(timedelta(hours=9))
 
+# グループバッジ定義（config.yaml の color 値と対応）
+GROUP_BADGE_STYLES: dict[str, dict[str, str]] = {
+    "orange": {"bg": "#fff7e6", "text": "#d46b08"},
+    "purple": {"bg": "#f9f0ff", "text": "#531dab"},
+}
+
 # スコア別カラー定義
 CARD_COLORS: dict[int, dict[str, str]] = {
     5: {
@@ -68,12 +74,32 @@ def _fmt_date(dt: datetime) -> str:
     return f"{jst.year}年{jst.month}月{jst.day}日（{w}）"
 
 
-def _article_table(article: Article) -> str:
+def _group_badges_html(matched_groups: list[str], group_color_map: dict[str, str]) -> str:
+    """マッチしたグループ名の丸バッジ HTML を返す"""
+    badges = []
+    for name in matched_groups:
+        color_key = group_color_map.get(name, "orange")
+        style = GROUP_BADGE_STYLES.get(color_key, GROUP_BADGE_STYLES["orange"])
+        badges.append(
+            f'<span style="background:{style["bg"]};color:{style["text"]};'
+            f'padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;'
+            f'margin-left:6px;white-space:nowrap;display:inline-block;">'
+            f'{html.escape(name)}</span>'
+        )
+    return "".join(badges)
+
+
+def _article_table(article: Article, group_color_map: dict[str, str] | None = None) -> str:
     """1件の特許を Outlook 対応テーブルで返す"""
     score = article.score or 0
     colors = CARD_COLORS.get(score, CARD_COLORS[1])
     raw_summary = article.ai_summary or article.summary[:400]
     summary = html.escape(raw_summary)
+
+    # グループバッジ
+    badges_html = ""
+    if article.matched_groups and group_color_map is not None:
+        badges_html = _group_badges_html(article.matched_groups, group_color_map)
 
     # 出願人行
     assignee_row = ""
@@ -141,7 +167,7 @@ def _article_table(article: Article) -> str:
                style="font-size:14px;font-weight:700;color:#1d1d1f;
                       text-decoration:none;line-height:1.5;">
               {title_escaped}
-            </a>
+            </a>{badges_html}
           </td>
         </tr>
         {assignee_row}
@@ -171,7 +197,7 @@ def _article_table(article: Article) -> str:
 
 def build_html(
     articles: list[Article],
-    keywords: list[str],
+    keyword_groups: list[dict],
     config: dict,
     report_date: datetime,
     total_collected: int = 0,
@@ -182,17 +208,25 @@ def build_html(
     min_score = config["delivery"].get("min_score", 3)
     subject_prefix = config.get("email", {}).get("subject_prefix", "特許情報ダイジェスト")
 
-    # キーワードタグ
-    kw_spans = "&nbsp; ".join(
-        f'<span style="background:#eff6ff;color:#1677ff;padding:2px 6px;'
-        f'font-size:11px;">{kw}</span>'
-        for kw in keywords[:12]
+    # グループ名→colorのマッピング（バッジ色解決用）
+    group_color_map = {g["name"]: g.get("color", "orange") for g in keyword_groups}
+
+    # ヘッダー: グループ名バッジ
+    group_badge_styles = {
+        "orange": "background:#fff7e6;color:#d46b08;",
+        "purple": "background:#f9f0ff;color:#531dab;",
+    }
+    group_spans = "&nbsp;&nbsp;".join(
+        f'<span style="{group_badge_styles.get(g.get("color","orange"), group_badge_styles["orange"])}'
+        f'padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;">'
+        f'{html.escape(g["name"])}</span>'
+        for g in keyword_groups
     )
 
     collected_str = str(total_collected) if total_collected > 0 else "-"
 
     # 記事テーブル
-    article_tables = "".join(_article_table(a) for a in articles)
+    article_tables = "".join(_article_table(a, group_color_map) for a in articles)
 
     return f"""<!DOCTYPE html>
 <html lang="ja" xmlns:v="urn:schemas-microsoft-com:vml"
@@ -264,11 +298,11 @@ def build_html(
           </td>
         </tr>
 
-        <!-- ===== キーワード ===== -->
+        <!-- ===== キーワードグループ ===== -->
         <tr>
           <td style="padding:12px 16px;background-color:#fafafa;border-bottom:1px solid #e8e8e8;">
-            <p style="margin:0 0 6px;font-size:10px;color:#9ca3af;">関心キーワード</p>
-            <p style="margin:0 0 8px;line-height:1.8;">{kw_spans}</p>
+            <p style="margin:0 0 6px;font-size:10px;color:#9ca3af;">関心グループ</p>
+            <p style="margin:0 0 8px;line-height:1.8;">{group_spans}</p>
             <p style="margin:0;font-size:11px;color:#9ca3af;">
               ★ 関連度:
               <span style="color:#d4380d;font-weight:600;">★★★★★ ドンピシャ</span> &nbsp;
@@ -405,7 +439,7 @@ def build_empty_html(config: dict, report_date: datetime, total_collected: int) 
 
 def deliver(articles: list[Article], config: dict, total_collected: int = 0) -> None:
     """HTML生成 + Gmail送信を一括実行する"""
-    keywords = config.get("interest_keywords", [])
+    keyword_groups = config.get("keyword_groups", [])
     now = datetime.now(tz=timezone.utc)
 
     subject_prefix = config.get("email", {}).get("subject_prefix", "特許情報ダイジェスト")
@@ -413,7 +447,7 @@ def deliver(articles: list[Article], config: dict, total_collected: int = 0) -> 
     date_str = f"{dt.year}/{dt.month}/{dt.day}"
 
     if articles:
-        html_body = build_html(articles, keywords, config, now, total_collected)
+        html_body = build_html(articles, keyword_groups, config, now, total_collected)
         subject = f"{subject_prefix} {date_str}（{len(articles)} 件）"
     else:
         html_body = build_empty_html(config, now, total_collected)

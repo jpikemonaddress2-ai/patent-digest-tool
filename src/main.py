@@ -90,8 +90,8 @@ def main() -> None:
         from datetime import datetime, timezone
         now = datetime.now(tz=timezone.utc)
         if filtered:
-            keywords = config.get("interest_keywords", [])
-            html = build_html(filtered, keywords, config, now, total_collected)
+            keyword_groups = config.get("keyword_groups", [])
+            html = build_html(filtered, keyword_groups, config, now, total_collected)
         else:
             html = build_empty_html(config, now, total_collected)
         out_path = Path(args.save_html)

@@ -1,20 +1,40 @@
 # 特許情報ダイジェスト 設定ファイル
 # このファイルを編集するだけでツールの挙動を変更できます
 
-# ---- 関心キーワード ----
-# タイトル・概要にこれらのキーワードが含まれる特許だけを収集します
-# 英語で記載してください（EPO OPS は英語検索対応）
-interest_keywords:
-  - polymer
-  - antistatic
-  - conductive polymer
-  - organic synthesis
-  - catalyst
-  - nanocomposite
-  - polyurethane
-  - polymer synthesis
-  - polymer composite
-  - electroconductive
+# ---- 関心キーワードグループ ----
+# グループごとにキーワードを設定します。いずれかのグループにマッチした特許が収集対象になります。
+# EPO OPS は英語検索のみ対応のため、英語キーワードのみ記載してください。
+# color: orange または purple（メールのバッジ色に対応）
+keyword_groups:
+  - name: "帯電防止・食品"
+    color: "orange"
+    keywords:
+      - polymer
+      - antistatic
+      - anti-fog
+      - rubber
+      - plastic
+      - additive
+      - food
+      - organic synthesis
+      - polyurethane
+      - electroconductive
+
+  - name: "合成・触媒"
+    color: "purple"
+    keywords:
+      - polymer
+      - emulsion polymerization
+      - catalyst
+      - rubber
+      - plastic
+      - emulsion
+      - organic synthesis
+      - nanocomposite
+      - conductive polymer
+      - machine learning
+      - molecular design
+      - materials science
 
 # ---- 収集・フィルタ設定 ----
 delivery:
